@@ -37,6 +37,11 @@ them is unclear.
   the tool that made it or the trick that worked. That would hand a recipe to anyone trying to fool it for
   real.
 - You get the credit by your handle, if you want it.
+- **The prize grows.**
+  - On launch day the prize is 1 month of Pro.
+  - Every day with no proven miss adds another month, up to 12.
+  - The first proven miss wins the whole prize, and the count starts again at 1.
+- **Every winner gets a numbered certificate**, "Fooled Sentinel #001", with the receipt behind it.
 - If we can't agree on whether the proof holds, we say so publicly and explain why.
 
 ## And if you can't fool it
@@ -45,6 +50,7 @@ If you make videos and Sentinel holds up, we'd love one video about it. That's a
 
 ## Fair play
 
+- No purchase needed.
 - An answer is an estimate, not proof. Never use one to accuse a person of faking a picture.
 - Use pictures you have the right to share. No private photos of other people.
 - The free check gives 6 checks every 3 hours, and a free account gives 10. Please don't flood it.

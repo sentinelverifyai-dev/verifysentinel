@@ -1,0 +1,40 @@
+# Builds and imports the Python client on the oldest and newest Python it claims, and checks the JavaScript client
+# parses. Runs on every push; publishes nothing. It never calls the live service.
+name: Check the clients
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build python
+      - run: python -m twine check python/dist/*
+      - name: The built package installs, imports and names the answers
+        run: |
+          python -m pip install python/dist/*.whl
+          python -c "import verifysentinel as v; assert v.WORDS['likely_ai'] == 'Likely made by AI'; print('ok', v.__version__)"
+
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check javascript/verifysentinel.mjs
+      - run: node -e "import('./javascript/verifysentinel.mjs').then(m => { if (m.WORDS.likely_ai !== 'Likely made by AI') process.exit(1); console.log('ok', m.VERSION); })"

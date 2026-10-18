@@ -1,0 +1,32 @@
+# Publishes the Python client to PyPI as `verifysentinel`. It runs only when started by hand: Actions tab ->
+# "Publish to PyPI" -> Run workflow. There is no password or token anywhere: PyPI trusts this exact workflow file in
+# this exact repository (trusted publishing, set up on pypi.org under the account verifysentinel).
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # lets PyPI confirm the request comes from this workflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build python
+      - run: python -m twine check python/dist/*
+      - name: The built package installs and imports
+        run: |
+          python -m pip install python/dist/*.whl
+          python -c "import verifysentinel as v; print('verifysentinel', v.__version__)"
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist/
