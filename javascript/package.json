@@ -1,0 +1,15 @@
+{
+  "name": "verifysentinel",
+  "version": "0.1.0",
+  "description": "Is this picture made by AI? A small client for Sentinel's AI image check.",
+  "type": "module",
+  "main": "verifysentinel.mjs",
+  "exports": "./verifysentinel.mjs",
+  "files": ["verifysentinel.mjs", "README.md"],
+  "engines": { "node": ">=18" },
+  "keywords": ["ai-image-detection", "deepfake", "image-forensics", "ai-generated-images"],
+  "homepage": "https://verifysentinel.com",
+  "repository": { "type": "git", "url": "https://github.com/sentinelverifyai-dev/verifysentinel" },
+  "license": "MIT",
+  "author": "Small Room <sentinelverifyai@gmail.com>"
+}

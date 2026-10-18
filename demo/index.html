@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel AI Image Check</title>
+<meta name="description" content="Is this picture made by AI? Sentinel answers in words, and says so when it cannot tell. Free, and the picture is not kept.">
+<style>
+/* CHL-002. A static Hugging Face Space: this page runs in the visitor's browser and sends the picture straight to
+   Sentinel's free check, so each visitor keeps their own limit and the model never leaves Sentinel's server.
+   Source of truth: sentinel/apps/hf-space/ (the Space is a copy). */
+:root{--bg:#f6f7f6;--card:#fff;--text:#16181c;--muted:#555a63;--line:rgba(0,0,0,.12);--accent:#0b7f86;
+  --ai:#b42318;--real:#16794a;--unsure:#8a6100;--chip:rgba(11,127,134,.08)}
+@media (prefers-color-scheme: dark){:root{--bg:#0b0c0e;--card:#131417;--text:#ecedee;--muted:#a3a6ad;
+  --line:rgba(255,255,255,.11);--accent:#35d8e0;--ai:#f0716b;--real:#3ecf8e;--unsure:#e2b850;--chip:rgba(53,216,224,.08)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:660px;margin:0 auto;padding:22px 16px 40px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{font-weight:750;letter-spacing:.01em;color:var(--text);text-decoration:none}
+.brand small{font-weight:500;color:var(--muted);margin-left:8px;font-size:.82rem}
+header a.site{color:var(--muted);font-size:.9rem}
+h1{font-size:clamp(1.7rem,4.6vw,2.3rem);line-height:1.15;margin:26px 0 8px;text-wrap:balance}
+.lede{color:var(--muted);margin:0 0 20px;max-width:56ch}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:150px;padding:20px;
+  border:1.5px dashed var(--line);border-radius:14px;background:var(--card);text-align:center;cursor:pointer;transition:border-color .15s}
+.drop:hover,.drop.over,.drop:focus-within{border-color:var(--accent)}
+.drop b{font-size:1.05rem}
+.drop span{color:var(--muted);font-size:.86rem}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.result{margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);display:none;gap:16px}
+.result.show{display:flex}
+.thumb{width:96px;height:96px;flex:none;border-radius:10px;object-fit:cover;background:var(--line)}
+.body{min-width:0;flex:1}
+.head{font-size:1.45rem;font-weight:750;line-height:1.2;margin:0 0 6px}
+.head.ai{color:var(--ai)}.head.real{color:var(--real)}.head.unsure{color:var(--unsure)}
+.text{margin:0;color:var(--text)}
+.note{margin:8px 0 0;color:var(--muted);font-size:.9rem}
+.receipt{margin-top:12px;font-size:.88rem;color:var(--muted)}
+.receipt .row{display:flex;gap:8px;margin-top:6px}
+.receipt input{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:12px ui-monospace,Consolas,monospace}
+button{font:inherit;cursor:pointer;border-radius:8px}
+.ghost{padding:6px 12px;border:1px solid var(--line);background:none;color:var(--text)}
+.ghost:hover,.ghost:focus-visible{border-color:var(--accent)}
+.report{margin-top:12px;font-size:.86rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.left{margin-top:10px;font-size:.84rem;color:var(--muted)}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0 0;padding:0;list-style:none}
+.facts li{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--chip);font-size:.88rem}
+.facts b{display:block;font-size:.95rem}
+.measured{margin:22px 0 0;font-size:.92rem;color:var(--muted)}
+footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);font-size:.86rem;color:var(--muted)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:560px){.facts{grid-template-columns:1fr}.result{flex-direction:column}.thumb{width:100%;height:160px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="https://verifysentinel.com/" target="_blank" rel="noopener">Sentinel<small>AI image check</small></a>
+    <a class="site" href="https://verifysentinel.com/" target="_blank" rel="noopener">verifysentinel.com</a>
+  </header>
+
+  <h1>Is this picture made by AI?</h1>
+  <p class="lede">Drop a picture. Sentinel answers in plain words, and when it can&rsquo;t tell, it says so instead of guessing.</p>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+    <b>Drop a picture here, or tap to choose one</b>
+    <span>JPEG, PNG or WebP, up to 5 MB. Use the original file if you have it: screenshots and re-saved copies lose detail.</span>
+  </label>
+
+  <div class="result" id="result" aria-live="polite">
+    <img class="thumb" id="thumb" alt="">
+    <div class="body">
+      <p class="head" id="head"></p>
+      <p class="text" id="text"></p>
+      <p class="note" id="note" hidden></p>
+      <div class="receipt" id="receipt" hidden>
+        Receipt: a sealed record of this answer you can share. Sentinel keeps no copy.
+        <div class="row"><input id="receiptUrl" readonly aria-label="Receipt link"><button class="ghost" id="copy" type="button">Copy</button>
+          <a class="ghost" id="open" target="_blank" rel="noopener" style="text-decoration:none">Open</a></div>
+      </div>
+      <div class="report" id="report" hidden>
+        <span id="reportAsk">Think it&rsquo;s wrong? Tell us what it is:</span>
+        <button class="ghost" type="button" data-claim="ai">Made by AI</button>
+        <button class="ghost" type="button" data-claim="real">A real photo</button>
+      </div>
+      <div class="left" id="left"></div>
+    </div>
+  </div>
+
+  <ul class="facts">
+    <li><b>Refuses rather than guesses</b>When the evidence is too thin, it says &ldquo;no answer&rdquo;.</li>
+    <li><b>Nothing kept</b>The picture is checked in memory and discarded.</li>
+    <li><b>Free</b>6 checks every 3 hours here. A free account gives 10.</li>
+  </ul>
+
+  <p class="measured">Measured on our own test sets: on 560 pictures, with AI ones from 7 generators it was never trained on, it declined about 1 in 4 and got every one of the 413 it answered right. Of the real photos it judged in a 2,800-picture set, it wrongly called 0.1% AI. New image generators may behave differently, and every answer is an estimate, not proof of how a picture was made.</p>
+
+  <footer>
+    Sentinel by Small Room &middot; <a href="https://verifysentinel.com/" target="_blank" rel="noopener">Full site</a> &middot;
+    <a href="https://t.me/VerifySentinelbot" target="_blank" rel="noopener">Telegram bot</a> &middot;
+    <a href="https://verifysentinel.com/apps/" target="_blank" rel="noopener">Android &amp; Windows apps</a> &middot;
+    <a href="https://verifysentinel.com/#/privacy" target="_blank" rel="noopener">Privacy</a>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var API = 'https://verifysentinel.com';
+  var MAX = 5 * 1024 * 1024;
+  var $ = function (id) { return document.getElementById(id); };
+  var last = null;
+
+  function show(head, tone, text, note) {
+    $('result').classList.add('show');
+    $('head').textContent = head;
+    $('head').className = 'head' + (tone ? ' ' + tone : '');
+    $('text').textContent = text || '';
+    $('note').hidden = !note; $('note').textContent = note || '';
+  }
+
+  function reset(file) {
+    $('receipt').hidden = true; $('report').hidden = true; $('left').textContent = '';
+    $('reportAsk').textContent = 'Think it’s wrong? Tell us what it is:';
+    Array.prototype.forEach.call(document.querySelectorAll('[data-claim]'), function (b) { b.disabled = false; b.hidden = false; });
+    if (file) { $('thumb').src = URL.createObjectURL(file); $('thumb').hidden = false; } else { $('thumb').hidden = true; }
+  }
+
+  function check(file) {
+    if (!file) return;
+    reset(file);
+    if (/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) {
+      show('This file type isn’t supported yet', 'unsure', 'HEIC photos from iPhones need converting first: share or export the photo as JPEG and try again.'); return;
+    }
+    if (file.size > MAX) {
+      show('That file is over 5 MB', 'unsure', 'The free check takes pictures up to 5 MB. A free account at verifysentinel.com takes larger files.'); return;
+    }
+    show('Checking…', '', 'Running Sentinel’s real engine on your picture.');
+    var form = new FormData();
+    form.append('file', file);
+    form.append('via', 'space');
+    fetch(API + '/api/detect/demo', { method: 'POST', body: form })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) { return { status: r.status, d: d }; });
+      })
+      .then(function (res) {
+        var d = res.d || {};
+        if (res.status === 429) {
+          show('You’ve used the free checks for now', 'unsure', 'There are 6 every 3 hours here. More soon, or create a free account at verifysentinel.com for 10 every 3 hours.'); return;
+        }
+        if (res.status === 503) { show('Sentinel is busy right now', 'unsure', 'Too many pictures at once. Please try again in a minute.'); return; }
+        if (res.status !== 200 || !d.answer) {
+          show('That didn’t work', 'unsure', typeof d.detail === 'string' ? d.detail : 'The check could not finish. Please try another picture.'); return;
+        }
+        last = d;
+        show(d.answer.headline, d.answer.tone, d.answer.text, d.answer.note);
+        if (d.receipt) {
+          var url = API + '/r/#' + d.receipt;
+          $('receiptUrl').value = url; $('open').href = url; $('copy').textContent = 'Copy'; $('receipt').hidden = false;
+        }
+        $('report').hidden = false;
+        var left = d.demo_left && typeof d.demo_left.remaining === 'number' ? d.demo_left.remaining : null;
+        if (left !== null) $('left').textContent = left === 1 ? '1 free check left for now.' : left + ' free checks left for now.';
+      })
+      .catch(function () { show('Couldn’t reach Sentinel', 'unsure', 'Check your connection and try again.'); });
+  }
+
+  $('copy').addEventListener('click', function () {
+    var input = $('receiptUrl'), b = $('copy');
+    var done = function () { b.textContent = 'Copied'; };
+    var manual = function () { input.focus(); input.select(); b.textContent = 'Selected: copy it'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(input.value).then(done, manual); else manual();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-claim]'), function (btn) {
+    btn.addEventListener('click', function () {
+      if (!last) return;
+      Array.prototype.forEach.call(document.querySelectorAll('[data-claim]'), function (b) { b.disabled = true; });
+      fetch(API + '/api/detect/demo-report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claimed: btn.getAttribute('data-claim'), verdict: last.verdict }) })
+        .then(function (r) {
+          $('reportAsk').textContent = r.ok ? 'Thanks. That goes straight to the person who builds Sentinel.' : 'That report could not be sent. Please try again later.';
+          Array.prototype.forEach.call(document.querySelectorAll('[data-claim]'), function (b) { b.hidden = r.ok; b.disabled = !r.ok ? false : true; });
+        })
+        .catch(function () {
+          $('reportAsk').textContent = 'That report could not be sent. Please try again later.';
+          Array.prototype.forEach.call(document.querySelectorAll('[data-claim]'), function (b) { b.disabled = false; });
+        });
+    });
+  });
+
+  var input = $('file'), drop = $('drop');
+  input.addEventListener('change', function () { check(input.files[0]); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { check(e.dataTransfer.files[0]); });
+})();
+</script>
+</body>
+</html>
